@@ -83,7 +83,7 @@ module Pentagram
         begin
           @options[:user] = Etc.getpwnam(s)
         rescue ArgumentError => e
-          raise OptionParser::InvalidArgument, "user must be a valid system user: #{e.to_s}"
+          raise OptionParser::InvalidArgument, "user must be a valid system user: #{e}"
         end
       end
 
@@ -105,7 +105,7 @@ module Pentagram
     def hook_continue?
       while @@signal_queue.length > 0 do
         sig = @@signal_queue.shift
-        logger.info("signal received: SIG#{sig.to_s}")
+        logger.info("signal received: SIG#{sig}")
 
         # By default (if we don't have any handlers registered for this signal), we simply exit. If there _are_
         # handlers registered then we take no action, leaving it to the registered handlers to decide what to do with
@@ -131,6 +131,29 @@ module Pentagram
       option_parser.parse!()
     end
 
+    private def pid_file_create(path)
+      if pid_file_valid?(path)
+        logger.error("pidfile #{path} belongs to another valid process (#{pid}), refusing to overwrite it")
+        Kernel.exit(3)
+      end
+      File.open(path, 'w') { |pid_file| pid_file.write("#{$$}\n") }
+      logger.info("wrote process pid #{$$} to pidfile #{path}")
+    rescue SystemCallError => e
+      logger.error("could not write pid #{$$} to pidfile #{path}: #{e}")
+      Kernel.exit(4)
+    end
+
+    private def pid_file_delete(path)
+      pid = pid_file_valid?(path)
+      if pid && pid != $$
+        logger.warn("pidfile #{path} belongs to another valid process (#{pid}), refusing to delete it")
+        return
+      end
+      File.delete(path)
+    rescue SystemCallError => e
+      logger.warn("pidfile #{path} could not be removed: #{e}")
+    end
+
     private def pid_file_valid?(path)
       pid = nil
       begin
@@ -149,7 +172,7 @@ module Pentagram
       begin
         Process.kill(0, pid)
         logger.debug("pidfile #{path} contains valid pid (#{pid})")
-        return true
+        return pid
       rescue Errno::ESRCH
         logger.debug("pidfile #{path} contains stale pid (#{pid})")
         return false
@@ -163,7 +186,7 @@ module Pentagram
       begin
         parse_arguments!()
       rescue OptionParser::InvalidOption, OptionParser::InvalidArgument, OptionParser::MissingArgument => e
-        puts e.to_s
+        puts e
         puts
         puts option_parser
         Kernel.exit(2)
@@ -180,25 +203,11 @@ module Pentagram
         $stdout.reopen(File.open('/dev/null', 'w'))
         $stderr.reopen(File.open('/dev/null', 'w'))
       end
+      Dir.chdir('/')
       logger.level = logger.class.const_get(:INFO)
       logger.level = logger.class.const_get(:DEBUG) if @options[:verbose]
       @options.each { |k,v| logger.debug("options[#{k}] = #{v}") } if logger.debug?
-
-      unless @options[:pid_file].nil?
-        if pid_file_valid?(@options[:pid_file])
-          logger.error("pidfile #{@options[:pid_file]} refers to existing process #{pid.to_s}, refusing to overwrite")
-          Kernel.exit(3)
-        end
-        begin
-          File.open(@options[:pid_file], 'w') { |pid_file| pid_file.write("#{$$}\n") }
-          logger.info("wrote process PID #{$$} to pidfile #{@options[:pid_file]}")
-        rescue SystemCallError => e
-          logger.error("could not write PID #{$$} to pidfile #{@options[:pid_file]}: #{e.to_s}")
-          Kernel.exit(4)
-        end
-      end
-
-      Dir.chdir('/')
+      pid_file_create(@options[:pid_file]) unless @options[:pid_file].nil?
 
       hook_privileged()
       unless @options[:user].nil?
@@ -218,6 +227,8 @@ module Pentagram
         end
       end while hook_continue?()
       hook_post_main()
+
+      pid_file_delete(@options[:pid_file]) unless @options[:pid_file].nil?
     end
   end
 end
