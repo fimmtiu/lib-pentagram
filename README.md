@@ -35,7 +35,7 @@ points in the daemonization process. None of these hooks are technically require
 will not achieve very much until you define at least `hook_main`.
 
 For the two hooks that have code already defined (`parse_arguments!` and `hook_continue?`), be sure to call `super` in
-your method body if you choose to over-ride them.
+your method body if you choose to override them.
 
 | Hook               | Purpose                                                                                        |
 | ------------------ | ---------------------------------------------------------------------------------------------- |
@@ -54,9 +54,8 @@ require 'pentagram'
 
 class GoatHerderDaemon < Pentagram::Daemon
   def initialize
-    @options = {}
-    # If our daemon wants to over-ride any of the default settings that are in our parent class, we can do so here.
-    @options[:pid_file] = '/tmp/goat_herder.pid'
+    # If our daemon wants to override any of the default settings that are in our parent class, we can do so here.
+    options[:pid_file] ||= '/tmp/goat_herder.pid'
     super
 
     self.class.register_signal_handler(:HUP, self.method(:signal_hup))
@@ -64,16 +63,18 @@ class GoatHerderDaemon < Pentagram::Daemon
     option_parser.banner = "#{File.basename(__FILE__)} [options] /path/to/goats"
     option_parser.version = '6.6.6'
 
-    @options[:num_goats] ||= 1234
-    option_parser.on('--num-goats GOATS', Integer, "the number of goats to monitor (default: #{@options[:num_goats]})") { |i|
+    options[:num_goats] ||= 1234
+    option_parser.on(
+      '--num-goats GOATS', Integer,
+      "the number of goats to monitor (default: #{options[:num_goats]})"
+    ) do |i|
       raise OptionParser::InvalidArgument, "number of goats must be greater than zero" if i <= 0
-      @options[:num_goats] = i
-    }
+      options[:num_goats] = i
+    end
   end
 
   def parse_arguments!
     super
-
     raise OptionParser::MissingArgument, "/path/to/goats was not given" unless ARGV.size > 0
   end
 
@@ -82,11 +83,9 @@ class GoatHerderDaemon < Pentagram::Daemon
   end
 
   def hook_main
-    i = 0
-    begin
+    options[:num_goats].times do |i|
       FileUtils.touch(File.join(ARGV[0], "goat-#{i}.txt"))
-      i += 1
-    end while i < @options[:num_goats]
+    end
   end
 end
 
