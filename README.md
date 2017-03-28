@@ -78,7 +78,7 @@ class GoatHerderDaemon < Pentagram::Daemon
     raise OptionParser::MissingArgument, "/path/to/goats was not given" unless ARGV.size > 0
   end
 
-  def signal_hup
+  def signal_hup(signal)
     FileUtils.touch('/tmp/GoatHerderDaemon.Stop.Touching.Me')
   end
 

@@ -11,13 +11,15 @@ module Pentagram
 
     def self.register_signal_handler(sig, method)
       sig = sig.upcase.to_sym unless sig.nil?
-      raise ArgumentError.new("unknown signal '#{sig}'") unless [:HUP, :INT, :TERM, :USR1, :USR2].include?(sig)
+      raise ArgumentError.new("unknown signal '#{sig}'") unless @@signal_handlers.include?(sig)
+      raise ArgumentError.new("#{method} has arity #{method.arity} instead of 1") unless method.arity == 1
       @@signal_handlers[sig] << method unless @@signal_handlers[sig].include?(method)
     end
 
     def initialize
       @@continue = true unless defined?(@@continue)
-      @@signal_handlers ||= Hash.new { Array.new }
+      @@signal_handlers ||= {}
+      [:HUP, :INT, :TERM, :USR1, :USR2].each { |sig| @@signal_handlers[sig] ||= [] }
       @@signal_queue ||= []
 
       option_parser.separator("\nArguments:")
