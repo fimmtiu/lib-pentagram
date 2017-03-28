@@ -2,11 +2,11 @@
 
 ## Impetus
 
-This repository contains 'pentagram', a simple daemonization/process management library used internally at Themis
-(Clio). Before this library was written, the various contenders in the space were considered (i.e., [Daemons],
-[DaemonKit], [Dante]), but were generally not suited very well for our particular use case. We were looking
-for a very light daemonization library that was easy to understand and that took care of the core behaviour required
-by daemonization without getting in the way. Generally, our requirements were:
+This repository contains 'pentagram', a simple daemonization/process management library used internally at Clio. Before
+this library was written, the various contenders in the space were considered (i.e., [Daemons], [DaemonKit], [Dante]),
+but were generally not suited very well for our particular use case. We were looking for a very light daemonization
+library that was easy to understand and that took care of the core behaviour required by daemonization without getting
+in the way. Generally, our requirements were:
 
 1. easy to read and understand.
 2. allows hooking into both argument parsing and all signals in a very straightforward way.
