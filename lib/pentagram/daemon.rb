@@ -135,7 +135,8 @@ module Pentagram
     end
 
     private def pid_file_create(path)
-      if pid_file_valid?(path)
+      pid = pid_file_valid?(path)
+      if pid
         logger.error("pidfile #{path} belongs to another valid process (#{pid}), refusing to overwrite it")
         Kernel.exit(3)
       end
