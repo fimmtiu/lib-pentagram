@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.email       = 'services@clio.com'
   spec.files       = Dir['lib/**/*.rb'] + Dir['spec/**/*.rb']
   spec.homepage    = 'https://github.com/clio/pentagram'
-  spec.licenses    = ['BSD-3-Clause']
+  spec.licenses    = ['MIT']
   spec.name        = File.basename(__FILE__, '.gemspec')
   spec.summary     = %q{A straightforward process daemonization library for ruby.}
   spec.version     = Pentagram::VERSION
