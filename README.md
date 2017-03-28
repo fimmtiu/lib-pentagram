@@ -56,14 +56,15 @@ class GoatHerderDaemon < Pentagram::Daemon
   def initialize
     # If our daemon wants to override any of the default settings that are in our parent class, we can do so here.
     options[:pid_file] ||= '/tmp/goat_herder.pid'
+    options[:sleep] ||= 60
     super
 
     self.class.register_signal_handler(:HUP, self.method(:signal_hup))
 
-    option_parser.banner = "#{File.basename(__FILE__)} [options] /path/to/goats"
+    option_parser.banner = "#{File.basename(__FILE__)} [options] /path/to/goat/paddock"
     option_parser.version = '6.6.6'
 
-    options[:num_goats] ||= 1234
+    options[:num_goats] ||= 12
     option_parser.on(
       '--num-goats GOATS', Integer,
       "the number of goats to monitor (default: #{options[:num_goats]})"
@@ -73,18 +74,45 @@ class GoatHerderDaemon < Pentagram::Daemon
     end
   end
 
+  private def goat_path(i)
+    File.join(ARGV[0], "goat-#{i}.txt")
+  end
+
   def parse_arguments!
     super
-    raise OptionParser::MissingArgument, "/path/to/goats was not given" unless ARGV.size > 0
+    raise OptionParser::MissingArgument, "/path/to/goat/paddock was not given" unless ARGV.size > 0
   end
 
   def signal_hup(signal)
     FileUtils.touch('/tmp/GoatHerderDaemon.Stop.Touching.Me')
   end
 
+  def hook_privileged
+    FileUtils.mkdir_p(ARGV[0])
+    logger.info("created goat paddock #{ARGV[0]}")
+  end
+
   def hook_main
     options[:num_goats].times do |i|
-      FileUtils.touch(File.join(ARGV[0], "goat-#{i}.txt"))
+      FileUtils.touch(goat_path(i))
+      logger.debug("woke up goat ##{i}")
+    end
+  end
+
+  def hook_post_main
+    options[:num_goats].times do |i|
+      if File.size(goat_path(i)) == 0
+        File.unlink(goat_path(i))
+        logger.debug("reaped goat ##{i}")
+      else
+        logger.error("unable to reap goat ##{i}, unexpected file size of #{File.size(goat_path(i))} bytes")
+      end
+    end
+    begin
+      Dir.rmdir(ARGV[0])
+      logger.info("removed goat paddock #{ARGV[0]}")
+    rescue SystemCallError => e
+      logger.error("unable to remove goat paddock #{ARGV[0]}: #{e}")
     end
   end
 end
