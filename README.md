@@ -46,10 +46,23 @@ your method body if you choose to override them.
 | `hook_main`        | If defined, will be executed once per daemon iteration - put your core work here.              |
 | `hook_post_main`   | If defined, will be executed just after the main iteration loop of the daemon is exited.       |
 
+## Signals
+
+Pentagram automatically installs global handlers (traps) for all signals and provides a framework to easily register
+signal handlers via `SignalBroker#register_broker(sig, handler)`. During default operations, received signals are
+queued for dispatch and are actually handled during any call to `Daemon#hook_continue?`. As per traditional UNIX
+semantics, received signals that do not have assigned handlers will cause the daemon to exit.
+
+For a polling daemon, the above behaviour (combined with a fairly quick-to-execute main loop) should work fine. For a
+daemon that is listening for data (for example, waiting for data to be available on some selection of file descriptors)
+there is a convenience wrapper method (`SignalBroker.select`) that can be used in place of `IO.select` in order to
+implement a highly efficient wait-for-input loop that also handles signals cleanly.
+
 ## Example Usage
 
 ```ruby
 require 'fileutils'
+require 'logger'
 require 'pentagram'
 
 class GoatHerderDaemon < Pentagram::Daemon
@@ -57,9 +70,14 @@ class GoatHerderDaemon < Pentagram::Daemon
     # If our daemon wants to override any of the default settings that are in our parent class, we can do so here.
     options[:pid_file] ||= '/tmp/goat_herder.pid'
     options[:sleep] ||= 60
+    # If we want to debug our initialization process, we can setup a debug logger here. If we don't set up a logger,
+    # then one will be initialized for us (but it will be at the Logger::INFO level and thus will not contain
+    # DEBUG log entries).
+    self.logger = Logger.new($stdout)
+    logger.level = Logger::DEBUG
     super
 
-    self.class.register_signal_handler(:HUP, self.method(:signal_hup))
+    Pentagram::SignalBroker.register_handler(:HUP, self.method(:signal_hup))
 
     option_parser.banner = "#{File.basename(__FILE__)} [options] /path/to/goat/paddock"
     option_parser.version = '6.6.6'
@@ -84,7 +102,7 @@ class GoatHerderDaemon < Pentagram::Daemon
   end
 
   def signal_hup(signal)
-    FileUtils.touch('/tmp/GoatHerderDaemon.Stop.Touching.Me')
+    FileUtils.touch("/tmp/GoatHerderDaemon.#{$$}.HUP")
   end
 
   def hook_privileged
@@ -100,6 +118,7 @@ class GoatHerderDaemon < Pentagram::Daemon
   end
 
   def hook_post_main
+    FileUtils.rm_f("/tmp/GoatHerderDaemon.#{$$}.HUP")
     options[:num_goats].times do |i|
       if File.size(goat_path(i)) == 0
         File.unlink(goat_path(i))

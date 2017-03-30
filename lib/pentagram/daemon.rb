@@ -1,26 +1,19 @@
 require 'etc'
 require 'logger'
 require 'optparse'
+require 'pentagram/signal_broker'
 
 module Pentagram
   class Daemon
-    def self.enqueue_signal(sig)
-      @@signal_queue ||= []
-      @@signal_queue << sig
-    end
-
-    def self.register_signal_handler(sig, method)
-      sig = sig.upcase.to_sym unless sig.nil?
-      raise ArgumentError.new("unknown signal '#{sig}'") unless @@signal_handlers.include?(sig)
-      raise ArgumentError.new("#{method} has arity #{method.arity} instead of 1") unless method.arity == 1
-      @@signal_handlers[sig] << method unless @@signal_handlers[sig].include?(method)
-    end
-
     def initialize
       @@continue = true unless defined?(@@continue)
-      @@signal_handlers ||= {}
-      [:HUP, :INT, :TERM, :USR1, :USR2].each { |sig| @@signal_handlers[sig] ||= [] }
-      @@signal_queue ||= []
+      if @logger.nil?
+        self.logger = Logger.new($stdout)
+        logger.level = Logger::INFO
+      else
+        self.logger = @logger
+      end
+      SignalBroker.register_brokers
 
       option_parser.separator("\nArguments:")
 
@@ -94,19 +87,11 @@ module Pentagram
     end
 
     def hook_continue?
-      while @@signal_queue.length > 0 do
-        sig = @@signal_queue.shift
-        logger.info("signal received: SIG#{sig}")
-
-        # By default (if we don't have any handlers registered for this signal), we simply exit. If there _are_
-        # handlers registered then we take no action, leaving it to the registered handlers to decide what to do with
-        # the signal.
-        if @@signal_handlers.include?(sig) && @@signal_handlers[sig].length > 0
-          @@signal_handlers[sig].each { |h| h.call(sig) }
-        else
-          @@continue = false
-        end
-      end
+      # Handle any outstanding (queued) signals. By default we schedule an exit if there are any unhandled signals
+      # that are found to be outstanding. If all of the outstanding signals have handlers, then we leave it to the
+      # handlers to decide what to do and do not take any action.
+      handled, unhandled = SignalBroker.handle_queued_signals
+      @@continue = false if unhandled.length > 0
       return (@@continue && options[:once] == false)
     end
 
@@ -119,7 +104,12 @@ module Pentagram
     def hook_privileged; end
 
     def logger
-      @logger ||= Logger.new($stdout)
+      @logger
+    end
+
+    def logger=(logger)
+      @logger = logger
+      SignalBroker.logger = @logger
     end
 
     def options
@@ -195,6 +185,8 @@ module Pentagram
         puts option_parser
         Kernel.exit(2)
       end
+      logger.level = logger.class.const_get(:DEBUG) if options[:verbose]
+      options.each { |k,v| logger.debug("options[#{k}] = #{v}") } if logger.debug?
 
       if options[:daemonize]
         GC.start
@@ -208,11 +200,7 @@ module Pentagram
         $stderr.reopen(File.open('/dev/null', 'w'))
       end
       Dir.chdir('/')
-      logger.level = logger.class.const_get(:INFO)
-      logger.level = logger.class.const_get(:DEBUG) if options[:verbose]
-      options.each { |k,v| logger.debug("options[#{k}] = #{v}") } if logger.debug?
       pid_file_create(options[:pid_file]) unless options[:pid_file].nil?
-
       hook_privileged
       unless options[:user].nil?
         Process.initgroups(options[:user][:name], options[:user][:gid])
