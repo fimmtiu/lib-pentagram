@@ -86,6 +86,23 @@ module Pentagram
       end
     end
 
+    # We want to support any reasonably sane logging object (i.e., Logger or Log4r). These libraries usually have
+    # constants that define logging levels (Logger::DEBUG, Log4r::INFO, etc.), but they sometimes keep those constants
+    # at different places relative to the active logging object itself, so we can't hardcode the path to the constants
+    # and expect it to work. We therefore attempt to cover the common cases by searching the module/class hierarchy for
+    # the log-level constant that we're looking for. If we can't find the constant, we immediately raise an exception
+    # so that the failure is clear.
+    private def get_logger_level(level)
+      level = level.to_sym
+      const_hierarchy = logger.class.name.split('::')
+      while const_hierarchy.length > 0
+        const = Kernel.const_get(const_hierarchy.join('::'))
+        return const.const_get(level) if const.const_defined?(level)
+        const_hierarchy.pop
+      end
+      raise NameError.new("unable to find log-level constant #{level.inspect} within #{logger.class.name} hierarchy")
+    end
+
     def hook_continue?
       # Handle any outstanding (queued) signals. By default we schedule an exit if there are any unhandled signals
       # that are found to be outstanding. If all of the outstanding signals have handlers, then we leave it to the
@@ -185,7 +202,7 @@ module Pentagram
         puts option_parser
         Kernel.exit(2)
       end
-      logger.level = logger.class.const_get(:DEBUG) if options[:verbose]
+      logger.level = get_logger_level(:DEBUG) if options[:verbose]
       options.each { |k,v| logger.debug("options[#{k}] = #{v}") } if logger.debug?
 
       if options[:daemonize]
