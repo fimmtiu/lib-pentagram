@@ -39,7 +39,20 @@ module Pentagram
         # (just not at the default framework level), so the intent is for individual daemons to trap('EXIT') when
         # useful to do so, or they can override this by passing in ::Signal.list.keys as the 'signals' parameter to
         # this method.
-        signals = ::Signal.list.keys - ['EXIT']
+        #
+        # We also remove SIGCHLD from our list of signals-trapped-by-default due to the expectation that _generally_
+        # the user will prefer the system default handling of SIGCHLD (which is typically to IGNORE it) rather than to
+        # have it treated as an unhandled signal.
+        #
+        # If you want SIGCHLD to be trapped by the framework just activate it _after_ Pentagram::Daemon initialization:
+        #
+        #   def initialize
+        #     super
+        #     Pentagram::SignalBroker.register_brokers(['CHLD'])
+        #     ...
+        #   end
+        #
+        signals = ::Signal.list.keys - ['CHLD', 'CLD', 'EXIT']
       end
       @@brokers ||= {}
       @@reader, @@writer = IO.pipe unless defined?(@@reader) && defined?(@@writer)
