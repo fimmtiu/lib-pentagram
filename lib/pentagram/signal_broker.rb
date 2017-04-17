@@ -40,11 +40,12 @@ module Pentagram
         # useful to do so, or they can override this by passing in ::Signal.list.keys as the 'signals' parameter to
         # this method.
         #
-        # We also remove SIGCHLD from our list of signals-trapped-by-default due to the expectation that _generally_
-        # the user will prefer the system default handling of SIGCHLD (which is typically to IGNORE it) rather than to
-        # have it treated as an unhandled signal.
+        # We also remove SIGCHLD/SIGCLD and SIGWINCH from our list of signals-trapped-by-default due to the expectation
+        # that _generally_ the user will prefer the system default handling of them (which is typically to IGNORE the
+        # signal when it is received) rather than to have them treated as unhandled.
         #
-        # If you want SIGCHLD to be trapped by the framework just activate it _after_ Pentagram::Daemon initialization:
+        # If you want either of them to be trapped by the framework just activate it _after_ Pentagram::Daemon
+        # initialization, i.e.:
         #
         #   def initialize
         #     super
@@ -52,7 +53,7 @@ module Pentagram
         #     ...
         #   end
         #
-        signals = ::Signal.list.keys - ['CHLD', 'CLD', 'EXIT']
+        signals = ::Signal.list.keys - ['CHLD', 'CLD', 'EXIT', 'WINCH']
       end
       @@brokers ||= {}
       @@reader, @@writer = IO.pipe unless defined?(@@reader) && defined?(@@writer)
