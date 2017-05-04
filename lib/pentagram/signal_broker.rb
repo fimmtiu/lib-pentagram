@@ -33,19 +33,21 @@ module Pentagram
         # While it is possible, it isn't generally useful to automatically handle SIGEXIT at the framework level,
         # because we can't handle SIGEXIT signals within our normal flow. This is because it is an internally generated
         # 'virtual' signal that is triggered the instant before the ruby script exits (i.e., it isn't really
-        # 'asynchronous', it's more like it is 'scheduled').
+        # 'asynchronous', it's more like it is 'scheduled'). Therefore, we remove SIGEXIT from our list of signals
+        # trapped by default. SIGEXIT is definitely still useful (just not at the default framework level), so the
+        # intent is for individual daemons to trap('EXIT') when useful to do so.
         #
-        # Therefore, we remove SIGEXIT from our list of signals trapped by default. SIGEXIT is definitely still useful
-        # (just not at the default framework level), so the intent is for individual daemons to trap('EXIT') when
-        # useful to do so, or they can override this by passing in ::Signal.list.keys as the 'signals' parameter to
-        # this method.
+        # We remove SIGCHLD/SIGCLD, SIGCONT, and SIGWINCH from our list of signals trapped by default due to the
+        # expectation that generally the user will prefer the system default handling of them (which is typically to
+        # IGNORE the signal when it is received) rather than to have them treated as unhandled.
         #
-        # We also remove SIGCHLD/SIGCLD and SIGWINCH from our list of signals-trapped-by-default due to the expectation
-        # that _generally_ the user will prefer the system default handling of them (which is typically to IGNORE the
-        # signal when it is received) rather than to have them treated as unhandled.
+        # We remove SIGPIPE and SIGSYS from our list of signals trapped by default due to the core ruby interpreter
+        # generally expecting them to be ignored (by default, the interpreter installs an 'ignore' handler for these
+        # signals). Both the interpreter and ruby code in general prefer these signals to be represented only by
+        # exceptions (Errno::EPIPE or the more generic SystemCallError, respectively).
         #
-        # If you want either of them to be trapped by the framework just activate it _after_ Pentagram::Daemon
-        # initialization, i.e.:
+        # Regardless, if you do want any of these signals to be trapped by the framework, just activate it immediately
+        # after Pentagram::Daemon initialization, i.e.:
         #
         #   def initialize
         #     super
@@ -53,7 +55,7 @@ module Pentagram
         #     ...
         #   end
         #
-        signals = ::Signal.list.keys - ['CHLD', 'CLD', 'EXIT', 'WINCH']
+        signals = ::Signal.list.keys - ['CHLD', 'CLD', 'CONT', 'EXIT', 'PIPE', 'SYS', 'WINCH']
       end
       @@brokers ||= {}
       @@reader, @@writer = IO.pipe unless defined?(@@reader) && defined?(@@writer)
