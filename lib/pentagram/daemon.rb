@@ -120,6 +120,10 @@ module Pentagram
 
     def hook_privileged; end
 
+    def next_sleep_time
+      options[:sleep]
+    end
+
     def logger
       @logger
     end
@@ -230,7 +234,7 @@ module Pentagram
       hook_pre_main
       begin
         hook_main
-        for i in 1..(options[:sleep] * 10)
+        for i in 1..(next_sleep_time * 10)
           break unless hook_continue?
           sleep(0.1)
         end

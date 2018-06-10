@@ -45,6 +45,8 @@ your method body if you choose to override them.
 | `hook_pre_main`    | If defined, will be executed just before the main iteration loop of the daemon is entered.     |
 | `hook_main`        | If defined, will be executed once per daemon iteration - put your core work here.              |
 | `hook_post_main`   | If defined, will be executed just after the main iteration loop of the daemon is exited.       |
+| `hook_post_main`   | If defined, will be executed just after the main iteration loop of the daemon is exited.       |
+| `next_sleep_time`  | If defined, will be executed after each call to `hook_main` to get the number of seconds to sleep for. (Defaults to the value of the `--sleep` command-line option.) |
 
 ## Signals
 
